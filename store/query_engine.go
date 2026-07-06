@@ -124,7 +124,7 @@ func QueryCombinedReports(tenant, ecid string, reports []string, start, end time
 }
 
 func QueryRawData(tenant, ecid string, start, end time.Time, cps []TargetMP, params map[string][]string) (map[string]*RawDataResult, error) {
-	c := &RawDataEngine{cps: cps, params: params}
+	c := &RawDataEngine{cps: dedupTargets(cps), params: params}
 	e := &Engine{c}
 
 	sm := time.Now()
@@ -136,6 +136,27 @@ func QueryRawData(tenant, ecid string, start, end time.Time, cps []TargetMP, par
 	}
 	glog.V(5).Infof("Query Row Data API took %v (%s)", time.Since(sm).Seconds(), tenant)
 	return c.function.GetResult(), nil
+}
+
+// dedupTargets removes duplicate metering points from the target list,
+// keeping the first occurrence and preserving order. The store holds exactly
+// one data series per metering-point name (one SourceIdx), so a caller that
+// lists the same ZP more than once — e.g. a metering point re-registered under
+// a new member while the old, overlapping participant row is still listed —
+// would otherwise get that ZP's identical series appended once per duplicate
+// entry (DefaultFunction) or double-counted (Aggregate). Deduplicating here
+// covers both raw endpoints (queryRawData and fetchRawV2 both call QueryRawData).
+func dedupTargets(cps []TargetMP) []TargetMP {
+	seen := make(map[string]struct{}, len(cps))
+	out := make([]TargetMP, 0, len(cps))
+	for _, cp := range cps {
+		if _, ok := seen[cp.MeteringPoint]; ok {
+			continue
+		}
+		seen[cp.MeteringPoint] = struct{}{}
+		out = append(out, cp)
+	}
+	return out
 }
 
 func QueryMetaData(tenant, ecid string) (map[string]*MetaData, error) {

@@ -27,6 +27,7 @@ func NewRestServer() *mux.Router {
 	r.HandleFunc("/eeg/v2/{ecid}/report", middleware.ProtectApp(fetchEnergyReportV2())).Methods("POST")
 	r.HandleFunc("/eeg/v2/{ecid}/meta", middleware.ProtectApp(queryMetaData())).Methods("GET")
 	r.HandleFunc("/eeg/v2/{ecid}/raw", middleware.ProtectApp(fetchRawEnergyV2())).Methods("POST")
+	r.HandleFunc("/eeg/v2/{ecid}/rawdata/delete", middleware.ProtectApp(deleteRawData())).Methods("POST")
 	r.HandleFunc("/eeg/v2/{ecid}/intra-day-report", middleware.ProtectApp(fetchIntraDayReportV2())).Methods("POST")
 	r.HandleFunc("/eeg/v2/{ecid}/load-curve-report", middleware.ProtectApp(fetchLoadCurveReportV2())).Methods("POST")
 	r.HandleFunc("/eeg/v2/{ecid}/load-curve-report", middleware.ProtectApp(getLoadCurveReportV2())).Methods("GET")
@@ -119,6 +120,53 @@ func fetchRawEnergyV2() middleware.JWTHandlerFunc {
 
 		glog.V(4).Infof("Time Monitor fetchRawData. %v\n", time.Now().Sub(startMonitor))
 		respondWithJSON(w, http.StatusOK, &resp)
+	}
+}
+
+// deleteRawData zeros the raw energy data of a single metering point within a
+// time range (Ops maintenance). dryRun=true previews the affected amount without
+// writing. Behind ProtectApp: cross-tenant deletion requires the superuser realm
+// role; otherwise the caller's tenant claim must contain the target tenant.
+func deleteRawData() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		ecid := mux.Vars(r)["ecid"]
+
+		var request struct {
+			MeteringPoint string `json:"meteringPoint"`
+			Start         int64  `json:"start"`
+			End           int64  `json:"end"`
+			DryRun        bool   `json:"dryRun"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			respondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if ecid == "" || request.MeteringPoint == "" || request.Start == 0 || request.End == 0 || request.Start >= request.End {
+			respondWithError(w, http.StatusBadRequest, "ecid, meteringPoint and a valid start<end range are required")
+			return
+		}
+
+		from := time.UnixMilli(request.Start)
+		to := time.UnixMilli(request.End)
+
+		affected, sumKwh, err := store.DeleteRawDataForMeteringPoint(tenant, ecid, request.MeteringPoint, from, to, request.DryRun)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if !request.DryRun {
+			glog.Warningf("RAWDATA-DELETE operator=%q tenant=%s ec=%s zp=%s from=%s to=%s timesteps=%d",
+				claims.Username, tenant, ecid, request.MeteringPoint,
+				from.UTC().Format(time.RFC3339), to.UTC().Format(time.RFC3339), affected)
+		}
+
+		respondWithJSON(w, http.StatusOK, map[string]interface{}{
+			"meteringPoint":     request.MeteringPoint,
+			"affectedTimesteps": affected,
+			"sumKwh":            sumKwh,
+			"deleted":           !request.DryRun,
+		})
 	}
 }
 

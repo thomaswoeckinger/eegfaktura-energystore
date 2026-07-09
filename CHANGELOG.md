@@ -8,6 +8,19 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Added
+- Ops endpoint `POST /eeg/v2/{ecid}/rawdata/delete` to remove the raw energy data of a **single
+  metering point** within a time range (maintenance for mis-assigned/duplicate data). Because one
+  BadgerDB row (15-min timestamp) packs all metering points of the EC into shared arrays, deletion
+  zeros only the target metering point's slot block (Consumers/Producers + QoV, resolved via the
+  same `GetMetaInfo`/`cpmeta/0` mapping the read path uses) — co-located metering points in the
+  same row stay untouched (core-correctness test in `store/deleteRawData_test.go`). Same iteration
+  for `dryRun` (preview: affected timesteps + summed kWh, no write) and execute; batched and
+  idempotent (re-zeroing is a no-op). Behind `ProtectApp` — cross-tenant deletion requires the
+  `superuser` realm role; each execute writes one structured log line
+  (operator/tenant/ec/zp/range/timesteps). Deletion is irreversible (value 0 / QoV 0); a later EDA
+  re-import repopulates the slots.
+
 ## [1.0.3] – 2026-07-06
 
 ### Changed

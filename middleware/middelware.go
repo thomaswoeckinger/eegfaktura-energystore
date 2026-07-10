@@ -17,7 +17,12 @@ type PlatformClaims struct {
 	RealmAccess struct {
 		Roles []string `json:"roles"`
 	} `json:"realm_access"`
-	jwt.StandardClaims
+	// RegisteredClaims (not the deprecated StandardClaims) so `aud` parses as
+	// either a string or an array — RFC 7519 allows both, and Keycloak emits an
+	// array when a token carries more than one audience (e.g. the admin client).
+	// StandardClaims models `aud` as a plain string and fails to unmarshal an
+	// array, which 401'd every multi-audience token. exp is still validated.
+	jwt.RegisteredClaims
 }
 
 type SecHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string, claims *PlatformClaims) error

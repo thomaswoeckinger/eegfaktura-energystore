@@ -16,8 +16,10 @@ this changelog highlights the changes relevant for overview and operations.
   same `GetMetaInfo`/`cpmeta/0` mapping the read path uses) — co-located metering points in the
   same row stay untouched (core-correctness test in `store/deleteRawData_test.go`). Same iteration
   for `dryRun` (preview: affected timesteps + summed kWh, no write) and execute; batched and
-  idempotent (re-zeroing is a no-op). Behind `ProtectApp` — cross-tenant deletion requires the
-  `superuser` realm role; each execute writes one structured log line
+  idempotent (re-zeroing is a no-op). Behind `ProtectApp` **and** an explicit `superuser` realm-role
+  check in the handler — because energystore is reachable directly by user-facing clients (the web
+  app calls `/eeg/v2/...` with user tokens), a tenant-scoped check alone would let any EEG-admin
+  delete their own tenant's data; only superusers may delete. Each execute writes one structured log line
   (operator/tenant/ec/zp/range/timesteps). Deletion is irreversible (value 0 / QoV 0); a later EDA
   re-import repopulates the slots.
 

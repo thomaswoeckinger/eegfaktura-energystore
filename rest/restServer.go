@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -130,6 +131,15 @@ func fetchRawEnergyV2() middleware.JWTHandlerFunc {
 func deleteRawData() middleware.JWTHandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
 		ecid := mux.Vars(r)["ecid"]
+
+		// Destructive endpoint: require the superuser role explicitly. ProtectApp
+		// alone would let any authenticated user delete data for their own tenant —
+		// and energystore is reachable directly by user-facing clients (the web app
+		// calls /eeg/v2/... with user tokens). Only superusers may delete.
+		if !slices.Contains(claims.RealmAccess.Roles, "superuser") {
+			respondWithError(w, http.StatusForbidden, "superuser role required")
+			return
+		}
 
 		var request struct {
 			MeteringPoint string `json:"meteringPoint"`

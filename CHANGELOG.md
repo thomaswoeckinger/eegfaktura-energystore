@@ -8,12 +8,37 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.1.0] – 2026-07-11
+
+### Added
+- Ops endpoint `POST /eeg/v2/{ecid}/rawdata/delete` to remove the raw energy data of a **single
+  metering point** within a time range (maintenance for mis-assigned/duplicate data). Because one
+  BadgerDB row (15-min timestamp) packs all metering points of the EC into shared arrays, deletion
+  zeros only the target metering point's slot block (Consumers/Producers + QoV, resolved via the
+  same `GetMetaInfo`/`cpmeta/0` mapping the read path uses) — co-located metering points in the
+  same row stay untouched (core-correctness test in `store/deleteRawData_test.go`). Same iteration
+  for `dryRun` (preview: affected timesteps + summed kWh, no write) and execute; batched and
+  idempotent (re-zeroing is a no-op). Behind `ProtectApp` **and** an explicit `superuser` realm-role
+  check in the handler — because energystore is reachable directly by user-facing clients (the web
+  app calls `/eeg/v2/...` with user tokens), a tenant-scoped check alone would let any EEG-admin
+  delete their own tenant's data; only superusers may delete. Each execute writes one structured log line
+  (operator/tenant/ec/zp/range/timesteps). Deletion is irreversible (value 0 / QoV 0); a later EDA
+  re-import repopulates the slots.
+
 ## [1.0.3] – 2026-07-06
 
 ### Changed
 - CI: Preview-Deployments (ADR-0007) — Push auf `preview/**` baut+deployt on-demand in die Dev-Zone (sha-pinned, kein `:latest`), Auto-Reset bei Branch-Delete.
 
 ### Fixed
+- Rawdata-delete (`POST /eeg/v2/{ecid}/rawdata/delete`) skipped the last timesteps
+  of the selected range ("end not deleted"). Row-ids encode wall-clock time in the
+  fold timezone (the image bakes `TZ=Europe/Berlin`), but the delete parsed them with
+  `time.UTC`, shifting every timestamp by the +1h/+2h offset — so timesteps after
+  local 23:00 on the last day fell past the range end and were skipped (dry-run
+  undercounted identically). Now parses row-ids in `time.Local`, matching the import,
+  report and Excel paths and the absolute `from`/`to` instants sent by the client.
+  Regression test added.
 - Raw-data query returned each timestamp multiple times for a re-registered
   metering point. When a metering point was deregistered from one member and
   re-registered under another, the old participant row remained with an

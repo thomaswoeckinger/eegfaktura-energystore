@@ -29,6 +29,14 @@ this changelog highlights the changes relevant for overview and operations.
 - CI: Preview-Deployments (ADR-0007) — Push auf `preview/**` baut+deployt on-demand in die Dev-Zone (sha-pinned, kein `:latest`), Auto-Reset bei Branch-Delete.
 
 ### Fixed
+- Rawdata-delete (`POST /eeg/v2/{ecid}/rawdata/delete`) skipped the last timesteps
+  of the selected range ("end not deleted"). Row-ids encode wall-clock time in the
+  fold timezone (the image bakes `TZ=Europe/Berlin`), but the delete parsed them with
+  `time.UTC`, shifting every timestamp by the +1h/+2h offset — so timesteps after
+  local 23:00 on the last day fell past the range end and were skipped (dry-run
+  undercounted identically). Now parses row-ids in `time.Local`, matching the import,
+  report and Excel paths and the absolute `from`/`to` instants sent by the client.
+  Regression test added.
 - Raw-data query returned each timestamp multiple times for a re-registered
   metering point. When a metering point was deregistered from one member and
   re-registered under another, the old participant row remained with an

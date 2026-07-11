@@ -2,9 +2,40 @@ package store
 
 import (
 	"testing"
+	"time"
 
 	"at.ourproject/energystore/model"
+	"at.ourproject/energystore/utils"
 )
+
+// TestDeleteRange_EndOfRangeIncludedInFoldTimezone guards the time-boundary bug:
+// row-ids encode wall-clock time in the fold timezone (the image bakes
+// TZ=Europe/Berlin, offset-identical to Vienna, so the delete uses time.Local).
+// The browser sends [from,to] as absolute instants of the local wall-clock pick.
+// Interpreting the row-id in UTC (the old bug) shifted it by the +1h offset, so
+// the last quarter-hours before the range end (local 23:15/23:30/23:45) fell past
+// `to` and were skipped. Using the fold zone keeps them in range.
+func TestDeleteRange_EndOfRangeIncludedInFoldTimezone(t *testing.T) {
+	fold := time.FixedZone("CET", 3600) // +1h, Vienna/Berlin winter (== time.Local in the image)
+	from := time.Date(2023, 2, 1, 0, 0, 0, 0, fold)
+	to := time.Date(2023, 3, 1, 0, 0, 0, 0, fold) // browser pick 01.03 00:00 -> absolute instant
+
+	// Last real datapoint of February at wall-clock 23:45.
+	_, ts, err := utils.ConvertRowIdToTimeString("CP", "CP/2023/02/28/23/45/00", fold)
+	if err != nil || ts == nil {
+		t.Fatalf("convert failed: %v", err)
+	}
+	if ts.Before(from) || ts.After(to) {
+		t.Fatalf("end-of-range timestep %v wrongly excluded from [%v, %v]", ts, from, to)
+	}
+
+	// Regression guard: the old time.UTC interpretation reproduces the bug
+	// (row-id parsed as 23:45 UTC is after to = 23:00 UTC).
+	_, tsUTC, _ := utils.ConvertRowIdToTimeString("CP", "CP/2023/02/28/23/45/00", time.UTC)
+	if tsUTC == nil || !tsUTC.After(to) {
+		t.Fatalf("sanity: expected UTC-parsed ts (%v) to be after to (%v) — the bug", tsUTC, to)
+	}
+}
 
 // TestInspectMeteringSlots_ZerosOnlyTargetConsumer is the core-correctness test:
 // a RawSourceLine packs multiple metering points into shared arrays. Zeroing one

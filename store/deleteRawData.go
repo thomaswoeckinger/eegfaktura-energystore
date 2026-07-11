@@ -128,7 +128,14 @@ func DeleteRawDataForMeteringPoint(tenant, ecid, meteringPoint string, from, to 
 
 	var line model.RawSourceLine
 	for iter.Next(&line) {
-		_, ts, e := utils.ConvertRowIdToTimeString("CP", line.Id, time.UTC)
+		// Row-ids encode wall-clock time in the fold timezone. The image bakes
+		// TZ=Europe/Berlin (offset-identical to Europe/Vienna), so time.Local is
+		// that zone — the same interpretation the import, report and Excel paths
+		// use. Using time.UTC here shifted every row-id by the +1h/+2h offset, so
+		// the last timesteps of the range (after local 23:00) fell past `to` and
+		// were skipped ("end not deleted"). Comparing in time.Local matches the
+		// absolute instants of from/to (UnixMilli from the browser's local pick).
+		_, ts, e := utils.ConvertRowIdToTimeString("CP", line.Id, time.Local)
 		if e != nil || ts == nil {
 			continue
 		}

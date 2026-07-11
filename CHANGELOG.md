@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.1.0] – 2026-07-11
+
 ### Added
 - Ops endpoint `POST /eeg/v2/{ecid}/rawdata/delete` to remove the raw energy data of a **single
   metering point** within a time range (maintenance for mis-assigned/duplicate data). Because one

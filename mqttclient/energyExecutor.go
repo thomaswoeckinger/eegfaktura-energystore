@@ -153,18 +153,14 @@ func (tmw *TenantEnergyImporter) Import(data *model.MqttEnergyMessage) error {
 	for i := range data.Energy {
 
 		groupedEnergy := SplitEnergyByDay(data.Energy[i])
-		var _wg = sync.WaitGroup{}
+		// Store day blocks sequentially: StoreEnergyV2 updates the shared cpmeta/0
+		// record and may assign SourceIdx values for previously unknown metering points.
 		for n := range groupedEnergy {
-			_wg.Add(1)
-			go func(e *model.MqttEnergy) {
-				defer _wg.Done()
-				if err := store.StoreEnergyV2(tmw.db[data.EcId], data.Meter.MeteringPoint, e); err != nil {
-					glog.Errorf("Error storing Energy: %v (Metering-Point: %s)", err, data.Meter.MeteringPoint)
-					return
-				}
-			}(&groupedEnergy[n])
+			if err := store.StoreEnergyV2(tmw.db[data.EcId], data.Meter.MeteringPoint, &groupedEnergy[n]); err != nil {
+				glog.Errorf("Error storing Energy: %v (Metering-Point: %s)", err, data.Meter.MeteringPoint)
+				continue
+			}
 		}
-		_wg.Wait()
 	}
 	return nil
 }

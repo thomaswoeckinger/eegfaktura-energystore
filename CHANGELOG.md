@@ -27,6 +27,8 @@ this changelog highlights the changes relevant for overview and operations.
   against the record as it is on disk. Reported externally in #28, which serializes the day
   blocks — this fixes the underlying lost update, so the metadata is safe even without that
   serialization.
+- Daily MQTT energy blocks are now stored sequentially, protecting shared `cpmeta/0` updates
+  and `SourceIdx` allocation for previously unknown metering points from concurrent writes.
 
 ### Changed
 - CI runs the Go tests of the reliably green packages (`utils`, `store`, `store/function`,

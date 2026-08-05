@@ -27,6 +27,8 @@ this changelog highlights the changes relevant for overview and operations.
   against the record as it is on disk. Reported externally in #28, which serializes the day
   blocks — this fixes the underlying lost update, so the metadata is safe even without that
   serialization.
+- Offline EDA XLSX import now normalizes capitalization and spacing variants in headers and
+  accepts date lines with optional seconds.
 
 ### Changed
 - CI runs the Go tests of the reliably green packages (`utils`, `store`, `store/function`,

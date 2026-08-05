@@ -10,7 +10,17 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
 )
+
+func normalizeHeader(header string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return unicode.ToLower(r)
+		}
+		return -1
+	}, header)
+}
 
 func calcRawDataMatrixLen(a []float64, step int) int {
 	l := len(a) - 1
@@ -49,34 +59,34 @@ func ImportExcelEnergyFileNew(f *excelize.File, sheet string, db ebow.IBowStorag
 	for rows.Next() {
 		totalRowCols = totalRowCols + 1
 		if cols, err := rows.Columns(excelize.Options{RawCellValue: true}); err == nil && len(cols) > 0 {
-			switch cols[0] {
-			case "MeteringpointID":
+			switch normalizeHeader(cols[0]) {
+			case "meteringpointid":
 				excelHeader.meteringPointId = make(map[int]string, len(cols)-1)
 				for i, c := range cols[1:] {
 					excelHeader.meteringPointId[i] = c
 				}
-			case "Spaltensumme", "Metering Interval",
-				"Name", "MeteringReason", "Number of Metering Intervals",
-				"Spaltensumme / minimale Qualität", "Data Completeness",
-				"Metering Point active end", "Metering Point active start",
-				"Data Period end", "Data Period start":
+			case "spaltensumme", "meteringinterval",
+				"name", "meteringreason", "numberofmeteringintervals",
+				"spaltensummeminimalequalität", "datacompleteness",
+				"meteringpointactiveend", "meteringpointactivestart",
+				"dataperiodend", "dataperiodstart":
 				continue
-			case "Energy direction":
+			case "energydirection":
 				excelHeader.energyDirection = make(map[int]model.MeterDirection, len(cols)-1)
 				for i, c := range cols[1:] {
 					excelHeader.energyDirection[i] = model.MeterDirection(c)
 				}
-			case "Period end", "Report Filter end":
+			case "periodend", "reportfilterend":
 				excelHeader.periodEnd = make(map[int]string, len(cols)-1)
 				for i, c := range cols[1:] {
 					excelHeader.periodEnd[i] = excelDateToString(c)
 				}
-			case "Period start", "Report Filter start":
+			case "periodstart", "reportfilterstart":
 				excelHeader.periodStart = make(map[int]string, len(cols)-1)
 				for i, c := range cols[1:] {
 					excelHeader.periodStart[i] = excelDateToString(c)
 				}
-			case "Metercode":
+			case "metercode":
 				excelHeader.meterCode = make(map[int]MeterCodeType, len(cols)-1)
 				for i, c := range cols[1:] {
 					excelHeader.meterCode[i] = returnMeterCode(strings.ToUpper(c))

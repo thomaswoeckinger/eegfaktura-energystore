@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-var dateLine = regexp.MustCompile(`^[0-9]{2}.[0-9]{2}.[0-9]{4}\s[0-9]{2}:[0-9]{2}:[0-9]{2}$`)
+var dateLine = regexp.MustCompile(`^[0-9]{2}\.[0-9]{2}\.[0-9]{4}\s[0-9]{2}:[0-9]{2}(?::[0-9]{2})?$`)
 var numberPattern = regexp.MustCompile(`^[0-9\\.,]+$`)
 
 func OpenExceFile(path string) (*excelize.File, error) {

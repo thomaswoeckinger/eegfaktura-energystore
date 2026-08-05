@@ -40,6 +40,8 @@ this changelog highlights the changes relevant for overview and operations.
 - Repository hygiene: generated Badger test data (`test/rawdata/`, `store/ebow/te999999/`) was
   accidentally committed together with the CI change and is removed again; both paths are now
   gitignored so a `git add -A` after a test run cannot pick them up.
+- MQTT import logs whether an invalid CR_MSG transport payload failed during
+  Base64 decoding or gzip decompression instead of reporting only empty data.
 
 ## [1.1.0] – 2026-07-11
 

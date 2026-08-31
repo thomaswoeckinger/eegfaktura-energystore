@@ -88,6 +88,19 @@ jobs:
             ./protoc/*.proto
           ls -la protoc/
 
+      # Bis hierher pruefte die Pipeline nur, ob das Image *baut* — ein gruener
+      # Check bedeutete "kompiliert", nicht "Tests bestehen". Eine Regression in
+      # der Perioden-Metadaten-Logik (PR #26) lief so an einem gruenen Check
+      # vorbei, obwohl ein vorhandener Test sie abgefangen haette.
+      #
+      # Bewusst KEIN `go test ./...`: auf main sind ./calculation (haengt,
+      # Timeout), ./model, ./mqttclient und ./store/ebow schon rot (Badger-Disk,
+      # Wire-Format-Fixtures). Die Liste deckt die Pakete ab, die auf main
+      # zuverlaessig gruen sind — sie ist als Untergrenze gedacht und gehoert
+      # erweitert, sobald die uebrigen Pakete repariert sind.
+      - name: Run Go tests (gruene Pakete)
+        run: go test -count=1 ./utils/ ./store/ ./store/function/ ./excel/
+
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5

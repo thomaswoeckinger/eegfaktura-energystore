@@ -28,6 +28,19 @@ this changelog highlights the changes relevant for overview and operations.
   blocks — this fixes the underlying lost update, so the metadata is safe even without that
   serialization.
 
+### Changed
+- CI runs the Go tests of the reliably green packages (`utils`, `store`, `store/function`,
+  `excel`) before the image build. Until now the pipeline only built the Docker image, so a
+  green check meant "it compiles" — nothing more. A regression in the period-metadata logic
+  (external PR #26) passed a green check although an existing test (`Test_updateMetaCP`)
+  caught it locally. Deliberately not `go test ./...`: on `main` the packages `calculation`
+  (hangs into the timeout), `model`, `mqttclient` and `store/ebow` are already failing
+  (Badger disk usage, wire-format fixtures) — the list is meant as a lower bound and should
+  grow once those are fixed.
+- Repository hygiene: generated Badger test data (`test/rawdata/`, `store/ebow/te999999/`) was
+  accidentally committed together with the CI change and is removed again; both paths are now
+  gitignored so a `git add -A` after a test run cannot pick them up.
+
 ## [1.1.0] – 2026-07-11
 
 ### Added

@@ -8,6 +8,16 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Changed
+- CI runs the Go tests of the reliably green packages (`utils`, `store`, `store/function`,
+  `excel`) before the image build. Until now the pipeline only built the Docker image, so a
+  green check meant "it compiles" — nothing more. A regression in the period-metadata logic
+  (external PR #26) passed a green check although an existing test (`Test_updateMetaCP`)
+  caught it locally. Deliberately not `go test ./...`: on `main` the packages `calculation`
+  (hangs into the timeout), `model`, `mqttclient` and `store/ebow` are already failing
+  (Badger disk usage, wire-format fixtures) — the list is meant as a lower bound and should
+  grow once those are fixed.
+
 ## [1.1.0] – 2026-07-11
 
 ### Added

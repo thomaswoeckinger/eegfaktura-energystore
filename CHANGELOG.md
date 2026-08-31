@@ -8,6 +8,26 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Fixed
+- `DateToString` rendered the seconds with `%.4d` — the year's verb, applied one argument too
+  far — so every period timestamp it wrote looked like `30.12.2023 15:00:0000`. The value was
+  still read correctly because the parser was lenient, but it leaked into the XLSX summary
+  sheet ("Zeitraum von …:0000") and into the `lastRecordDate` REST/GraphQL response, and it
+  silently ruled out moving the parser to `time.Parse`. Seconds are now two digits. Records
+  already on disk keep the old shape and stay readable (see below).
+- Reading period timestamps is now tolerant by intent rather than by accident: the canonical
+  form, the legacy four-digit-seconds form, and EDA's offline exports without seconds
+  (`31.07.2026 23:45`) are all accepted, everything else fails. Previously this rested on
+  `fmt.Sscanf` happening to be forgiving — a `DateToString`/`StringToTime` round-trip test
+  now pins it, which is the assertion that was missing all along.
+- `updateMeta` merged instead of overwriting: a month message is split into day blocks that
+  each read `cpmeta/0` once and write it back at the end, so a block could persist its own
+  stale period over the wider one another block had just written. The values themselves were
+  complete; the dashboard cut off at the older end date. The widening is now re-applied
+  against the record as it is on disk. Reported externally in #28, which serializes the day
+  blocks — this fixes the underlying lost update, so the metadata is safe even without that
+  serialization.
+
 ## [1.1.0] – 2026-07-11
 
 ### Added

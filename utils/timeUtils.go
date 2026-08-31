@@ -32,12 +32,30 @@ func GetMonthDuration(from, to time.Time) (startFromYear, months int) {
 	return
 }
 
-func ParseTime(strTime string, fallback int64) (time.Time, error) {
+// parseDateTime reads the "TT.MM.JJJJ HH:MM:SS" family used throughout the store.
+//
+// Two deviations have to be tolerated. Records written before DateToString was
+// corrected carry a four-digit seconds field ("30.12.2023 15:00:0000") — that is
+// what is on disk today, so refusing it would make every stored
+// PeriodStart/PeriodEnd unreadable. EDA's offline exports on the other hand omit
+// the seconds entirely ("31.07.2026 23:45").
+func parseDateTime(value string) (time.Time, error) {
 	var y, m, d, hh, mm, ss int
-	if _, err := fmt.Sscanf(strTime, "%d.%d.%d %d:%d:%d", &d, &m, &y, &hh, &mm, &ss); err != nil {
+	if n, err := fmt.Sscanf(value, "%d.%d.%d %d:%d:%d", &d, &m, &y, &hh, &mm, &ss); err == nil && n == 6 {
+		return time.Date(y, time.Month(m), d, hh, mm, ss, 0, time.Local), nil
+	}
+	if n, err := fmt.Sscanf(value, "%d.%d.%d %d:%d", &d, &m, &y, &hh, &mm); err == nil && n == 5 {
+		return time.Date(y, time.Month(m), d, hh, mm, 0, 0, time.Local), nil
+	}
+	return time.Time{}, fmt.Errorf("unparsable date %q", value)
+}
+
+func ParseTime(strTime string, fallback int64) (time.Time, error) {
+	parsed, err := parseDateTime(strTime)
+	if err != nil {
 		return time.UnixMilli(fallback), err
 	}
-	return time.Date(y, time.Month(m), d, hh, mm, ss, 0, time.Local), nil
+	return parsed, nil
 }
 
 func ConvertRowIdToTime(prefix, rowId string) (time.Time, error) {
@@ -95,8 +113,14 @@ func ConvertDate(time time.Time) string {
 	return fmt.Sprintf("%.4d-%.2d-%.2d", year, int(month), day)
 }
 
+// DateToString renders the canonical "TT.MM.JJJJ HH:MM:SS" form.
+//
+// The seconds used to be formatted with %.4d — the year's verb, copied one
+// argument too far — which produced "30.12.2023 15:00:0000". That went
+// unnoticed because the reader was lenient. Existing records keep the old
+// shape; parseDateTime still accepts them.
 func DateToString(date time.Time) string {
-	return fmt.Sprintf("%.2d.%.2d.%.4d %.2d:%.2d:%.4d", date.Day(), date.Month(), date.Year(), date.Hour(), date.Minute(), date.Second())
+	return fmt.Sprintf("%.2d.%.2d.%.4d %.2d:%.2d:%.2d", date.Day(), date.Month(), date.Year(), date.Hour(), date.Minute(), date.Second())
 }
 
 //func StringToTime(date string) time.Time {
@@ -108,9 +132,8 @@ func DateToString(date time.Time) string {
 //}
 
 func StringToTime(date string, defaultValue time.Time) time.Time {
-	var d, m, y, hh, mm, ss int
-	if _, err := fmt.Sscanf(date, "%d.%d.%d %d:%d:%d", &d, &m, &y, &hh, &mm, &ss); err == nil {
-		return time.Date(y, time.Month(m), d, hh, mm, ss, 0, time.Local)
+	if parsed, err := parseDateTime(date); err == nil {
+		return parsed
 	}
 	return defaultValue
 }

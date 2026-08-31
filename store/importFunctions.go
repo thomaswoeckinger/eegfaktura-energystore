@@ -92,8 +92,8 @@ func StoreEnergyV2(db *ebow.BowStorage, meteringPoint string, data *model.MqttEn
 		return err
 	}
 
-	if c := updateMetaCP(metaCP, time.UnixMilli(data.Start), time.UnixMilli(data.End)); c {
-		err = updateMeta(db, metaCP, meteringPoint)
+	if c := updateMetaCP(metaCP, begin, end); c {
+		err = updateMeta(db, metaCP, meteringPoint, begin, end)
 	}
 	return err
 }
@@ -235,14 +235,22 @@ func updateMetaCP(metaCP *model.CounterPointMeta, begin, end time.Time) bool {
 	return changed
 }
 
-func updateMeta(db *ebow.BowStorage, metaCP *model.CounterPointMeta, cp string) error {
+// updateMeta persists the period of one counter point into the EC-wide cpmeta/0
+// record.
+//
+// The widening is re-applied against the record as it currently is on disk
+// instead of assigning metaCP's fields: metaCP was read at the start of
+// StoreEnergyV2, and another day block of the same message may have extended the
+// period in the meantime. Assigning blindly dropped that extension again — the
+// block finishing last won even with an older end date, which surfaced as a
+// period truncated in the dashboard while the measured values were complete.
+func updateMeta(db ebow.IBowStorage, metaCP *model.CounterPointMeta, cp string, begin, end time.Time) error {
 	var err error
 	var meta *model.RawSourceMeta
 	if meta, err = db.GetMeta(fmt.Sprintf("cpmeta/%s", "0")); err == nil {
 		for _, m := range meta.CounterPoints {
 			if m.Name == cp {
-				m.PeriodStart = metaCP.PeriodStart
-				m.PeriodEnd = metaCP.PeriodEnd
+				updateMetaCP(m, begin, end)
 				m.Count = metaCP.Count
 
 				return db.SetMeta(meta)

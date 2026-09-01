@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -172,6 +173,7 @@ func (tmw *TenantEnergyImporter) Import(data *model.MqttEnergyMessage) error {
 func decodeMessage(msg []byte) *model.MqttEnergyMessage {
 	decompressed, err := decryptMessage(msg)
 	if err != nil {
+		glog.Errorf("Error decoding CR_MSG transport payload. %s", err.Error())
 		return nil
 	}
 
@@ -185,15 +187,14 @@ func decodeMessage(msg []byte) *model.MqttEnergyMessage {
 }
 
 func decryptMessage(msg []byte) ([]byte, error) {
-	// --- Reverse ---
 	decoded, err := base64.StdEncoding.DecodeString(string(msg[:]))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode Base64: %w", err)
 	}
 
 	decompressed, err := gunzipData(decoded)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decompress gzip: %w", err)
 	}
 	return decompressed, nil
 }

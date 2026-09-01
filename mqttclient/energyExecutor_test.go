@@ -42,6 +42,13 @@ func gzipData(data []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+func TestDecodeMessageRejectsIncompatibleTransportPayload(t *testing.T) {
+	require.Nil(t, decodeMessage([]byte("not-a-base64-cr-msg")))
+
+	notGzip := base64.StdEncoding.EncodeToString([]byte("not-gzip"))
+	require.Nil(t, decodeMessage([]byte(notGzip)))
+}
+
 func TestNewMqttEnergyImporter(t *testing.T) {
 	timeV1, err := utils.ParseTime("24.10.2022 00:00:00", time.Now().UnixMilli())
 	timeV2, err := utils.ParseTime("24.10.2022 00:15:00", time.Now().UnixMilli())

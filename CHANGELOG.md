@@ -29,6 +29,8 @@ this changelog highlights the changes relevant for overview and operations.
   serialization.
 - Offline EDA XLSX import now normalizes capitalization and spacing variants in headers and
   accepts date lines with optional seconds.
+- Daily MQTT energy blocks are now stored sequentially, protecting shared `cpmeta/0` updates
+  and `SourceIdx` allocation for previously unknown metering points from concurrent writes.
 
 ### Changed
 - CI runs the Go tests of the reliably green packages (`utils`, `store`, `store/function`,
@@ -42,6 +44,8 @@ this changelog highlights the changes relevant for overview and operations.
 - Repository hygiene: generated Badger test data (`test/rawdata/`, `store/ebow/te999999/`) was
   accidentally committed together with the CI change and is removed again; both paths are now
   gitignored so a `git add -A` after a test run cannot pick them up.
+- MQTT import logs whether an invalid CR_MSG transport payload failed during
+  Base64 decoding or gzip decompression instead of reporting only empty data.
 
 ## [1.1.0] – 2026-07-11
 

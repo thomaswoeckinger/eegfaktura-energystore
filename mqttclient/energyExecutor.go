@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -153,18 +154,14 @@ func (tmw *TenantEnergyImporter) Import(data *model.MqttEnergyMessage) error {
 	for i := range data.Energy {
 
 		groupedEnergy := SplitEnergyByDay(data.Energy[i])
-		var _wg = sync.WaitGroup{}
+		// Store day blocks sequentially: StoreEnergyV2 updates the shared cpmeta/0
+		// record and may assign SourceIdx values for previously unknown metering points.
 		for n := range groupedEnergy {
-			_wg.Add(1)
-			go func(e *model.MqttEnergy) {
-				defer _wg.Done()
-				if err := store.StoreEnergyV2(tmw.db[data.EcId], data.Meter.MeteringPoint, e); err != nil {
-					glog.Errorf("Error storing Energy: %v (Metering-Point: %s)", err, data.Meter.MeteringPoint)
-					return
-				}
-			}(&groupedEnergy[n])
+			if err := store.StoreEnergyV2(tmw.db[data.EcId], data.Meter.MeteringPoint, &groupedEnergy[n]); err != nil {
+				glog.Errorf("Error storing Energy: %v (Metering-Point: %s)", err, data.Meter.MeteringPoint)
+				continue
+			}
 		}
-		_wg.Wait()
 	}
 	return nil
 }
@@ -172,6 +169,7 @@ func (tmw *TenantEnergyImporter) Import(data *model.MqttEnergyMessage) error {
 func decodeMessage(msg []byte) *model.MqttEnergyMessage {
 	decompressed, err := decryptMessage(msg)
 	if err != nil {
+		glog.Errorf("Error decoding CR_MSG transport payload. %s", err.Error())
 		return nil
 	}
 
@@ -185,15 +183,14 @@ func decodeMessage(msg []byte) *model.MqttEnergyMessage {
 }
 
 func decryptMessage(msg []byte) ([]byte, error) {
-	// --- Reverse ---
 	decoded, err := base64.StdEncoding.DecodeString(string(msg[:]))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode Base64: %w", err)
 	}
 
 	decompressed, err := gunzipData(decoded)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decompress gzip: %w", err)
 	}
 	return decompressed, nil
 }
